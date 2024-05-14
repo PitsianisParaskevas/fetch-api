@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fetch api</title>
+    <style>
+        body{
+            margin: 20px;
+        }
+        input#urlInput {
+    width: 40%;
+}
+     .area-output {
+        width: auto;
+        margin-top: 20px;
+        border: 1px solid black;
+        padding: 1rem;
+        background-color: #f3f3f3;
+     }
+     #output{
+        /* height: 500px; */
+     }
+     .outputTextArea {
+        margin-top: 20px;
+        height: 500px;
+        width: 100%;
+     }
+     </style>
+</head>
+<body>
+    <h1>Fetch api</h1>
+
+    <input type="text" id="urlInput" placeholder="Enter URL">
+    <button id="extractButton">Extract ID and Fetch</button>
+
+    <div>
+        <textarea class="outputTextArea" id="output" ></textarea>
+    </div>
+    
+    
+
+    <script>
+
+
+        function extractId() {
+            var url = document.getElementById("urlInput").value;
+            var startIndex = url.indexOf("id:") + 3; // Adding 3 to skip "id:"
+            var id = url.substring(startIndex);
+            return id;
+        }
+
+        document.getElementById("extractButton").addEventListener("click", function() {
+            var id = extractId(); // Extract ID from input
+            if (id) {
+                getData(id)
+            } else {
+                console.error('ID not found');
+            }
+        });
+
+
+        async function extractStatistics(id) {
+            const apiUrl = 'https://www.sofascore.com/api/v1/event/' + id + '/statistics';
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch statistics');
+                }
+                const data = await response.json();
+                return data.statistics;
+            } catch (error) {
+                throw new Error('Error fetching statistics: ' + error.message);
+            }
+        }
+
+        async function extractIncidents(id) {
+            const apiUrl = 'https://www.sofascore.com/api/v1/event/' + id + '/incidents';
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch incidents');
+                }
+                const data = await response.json();
+                return data.incidents;
+            } catch (error) {
+                throw new Error('Error fetching incidents: ' + error.message);
+            }
+        }
+
+        async function extractLineUps(id) {
+            const apiUrl = 'https://www.sofascore.com/api/v1/event/' + id + '/lineups';
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch lineups');
+                }
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                throw new Error('Error fetching lineups: ' + error.message);
+            }
+        }
+
+        async function getData(id) {
+
+            const home = {};
+            const away = {};
+            const metadata = {};
+
+            const statistics = await extractStatistics(id);
+            const incidents = await extractIncidents(id);
+            const lineups = await extractLineUps(id);
+
+            const metadataStatistic =  await getMetadataStatistics(statistics);
+            const metadataIncident = await getMetadataIncidents(incidents);
+            const metadataLineups = await getMetadataLineups(lineups);
+
+           
+                        
+            const statistic = fixStatistics(statistics); // get an array home & away objects
+            const incident = fixIncidents(incidents);
+            const lines = fixLineUps(lineups);
+
+
+            console.log(lines)
+
+            // metadata
+            metadata['statisticsMetaData'] = metadataStatistic;
+            metadata['incidentsMetaData'] = metadataIncident;
+            metadata['lineupsMetaData'] = metadataLineups;
+
+            // home["PlayerColor"] =  lines.home.playerColor['primary'];
+            // home["GoalkeeperColor"]
+
+            // home
+            home["team"] = "home";
+            home["PlayerColor"] = lines[0].PlayerColor
+            home["GoalkeeperColor"] = lines[0].GoalkeeperColor
+            home["formation"] = lines[0].formation;
+            home["rating"] = lines[0].rating;
+            home["incidentFull"] = incident[0].period[0];
+            home["incidentHalf"] = incident[0].period[1];
+            home["periodFull"] = statistic.home[0];
+            home["periodSecond"] = statistic.home[1];
+            home["periodFirst"] = statistic.home[2];
+            home["players"] = lines[0].players;
+            home["missing"] = lines[0].missing;
+            home["goal"] = incident[0].goal;
+            home["card"] = incident[0].card;
+            home["subs"] = incident[0].sub;
+            home["missingPenalty"] = incident[0].missingPenalty;
+
+            // away
+            away["team"] = "away";
+            away["PlayerColor"] = lines[1].PlayerColor
+            away["GoalkeeperColor"] = lines[1].GoalkeeperColor
+            away["formation"] = lines[1].formation;
+            away["rating"] = lines[1].rating;
+            away["incidentFull"] = incident[1].period[0];
+            away["incidentHalf"] = incident[1].period[1];
+            away["periodFull"] = statistic.away[0];
+            away["periodSecond"] = statistic.away[1];
+            away["periodFirst"] = statistic.away[2];
+            away["players"] = lines[1].players;
+            away["missing"] = lines[1].missing;
+            away["goal"] = incident[1].goal;
+            away["card"] = incident[1].card;
+            away["subs"] = incident[1].sub;
+            away["missingPenatly"] = incident[1].missingPenalty;
+
+
+            //merge json
+            const mergeedJSON = [metadata, home, away];
+            
+
+            // mergeedJSON.push(home);
+            // mergeedJSON.push(away);
+
+            const output = document.getElementById("output");
+            output.innerHTML = JSON.stringify(mergeedJSON);
+            
+
+        }
+
+// _________________________________________________________________________________________________
+// _________________________________________________________________________________________________
+// _________________________________________________________________________________________________
+// _________________________________________________________________________________________________
+// _________________________________________________________________________________________________
+// _________________________________________________________________________________________________
+
+
+        function getMetadataStatistics(statistics) {
+            const metadata = {};
+            
+            // Loop through the statistics groups
+            for(var groupIndex in statistics) {
+               
+                const groups = statistics[groupIndex].groups;
+
+                for(var g in groups) {
+                    const groupName = captitalizeText(groups[g].groupName);
+                    const statisticsItems = groups[g].statisticsItems;
+                    var list = []
+
+                    for (var i in statisticsItems) {
+                        const itemsName = captitalizeText(statisticsItems[i].name);
+                        list.push(itemsName)
+                    }
+
+                    
+                    if(metadata[groupName]) {
+                        // check if list item don't exist on metadata[groupName];
+                        for(var item of list) {
+                            if(!metadata[groupName].includes(item)) {
+                                metadata[groupName].push(item);
+                            }
+                        }
+                    } else {
+                        metadata[groupName] = list;
+                    }
+                } // groups                
+            } // statistics
+
+            return metadata;
+        }
+
+        function getMetadataIncidents(incidents) {
+            
+            const metadata = {};
+
+            for(var i in incidents) {
+                const incident = incidents[i];
+                const incidentType = incidents[i].incidentType;
+                  
+                // Skip 'period' incidents
+                if (incidentType === 'period') {
+                    continue;
+                } 
+                
+                 // Check if the incidentClass property exists
+                if ('incidentClass' in incident) {
+                    // If it exists, do something
+                    const incidentClass = incident.incidentClass;
+
+                    if(metadata[incidentType]) {
+                        // if incidentClass exist 
+                        if(!metadata[incidentType].includes(incidentClass)) {
+                            metadata[incidentType].push(incidentClass)
+                        }
+                    } else {
+                        metadata[incidentType] = [incidentClass]
+                    }
+
+
+                } else {
+                    // incidentClass is undifined
+                    if(!metadata[incidentType]) {
+                        metadata[incidentType] = [incidentType]
+                    }
+                }
+                    
+                
+            }
+
+            return metadata;
+        }
+
+        function getMetadataLineups(lineups) {
+            const homePlayers = lineups.home.players;
+            const awayPlayers = lineups.away.players;
+
+            const playerStatsKeys = []; // List to store player stats keys
+
+            for(var i in homePlayers) {
+                const keys = Object.keys(homePlayers[i].statistics);
+                
+              // Loop through the keys and check if each one is already in playerStatsKeys
+                for (var j = 0; j < keys.length; j++) {
+                    if (!playerStatsKeys.includes(keys[j])) {
+                        playerStatsKeys.push(keys[j]);
+                    }
+                }
+            }
+
+            for(var i in awayPlayers) {
+                const keys = Object.keys(awayPlayers[i].statistics);
+                
+              // Loop through the keys and check if each one is already in playerStatsKeys
+                for (var j = 0; j < keys.length; j++) {
+                    if (!playerStatsKeys.includes(keys[j])) {
+                        playerStatsKeys.push(keys[j]);
+                    }
+                }
+            }
+
+            playerStatsKeys.sort();
+            return playerStatsKeys;            
+        }
+
+
+// _________________________________________________________________________________________________
+// _________________________________________________________________________________________________
+// _________________________________________________________________________________________________
+// _________________________________________________________________________________________________
+// _________________________________________________________________________________________________
+// _________________________________________________________________________________________________
+
+
+        function fixStatistics(statistics) {
+            
+            let statisticObj = {};
+            let home = [];
+            let away = [];
+
+            const homeAll = statisticPeriodHome(statistics[0]);
+            const homeFirst = statisticPeriodHome(statistics[1]);
+            const homeSecond = statisticPeriodHome(statistics[2]);
+
+            home.push(homeAll);
+            home.push(homeFirst);
+            home.push(homeSecond);
+
+            const awayAll = statisticPeriodAway(statistics[0]);
+            const awayFirst = statisticPeriodAway(statistics[1]);
+            const awaySecond = statisticPeriodAway(statistics[2]);
+
+            away.push(awayAll);
+            away.push(awayFirst);
+            away.push(awaySecond);
+
+            statisticObj["home"] = home;
+            statisticObj["away"] = away;
+
+            return statisticObj;
+        }
+
+        function fixIncidents(incidents) {
+            const home = {};
+            const away = {};
+            home["team"] = "home";
+            away["team"] = "away";
+
+            const periodHomeArr = [];
+            const periodAwayArr = [];
+
+            const goalHomeArr = [];
+            const goalAwayArr = [];
+
+            const cardHomeArr = [];
+            const cardAwayArr = [];
+
+            const subHomeArr = [];
+            const subAwayArr = [];
+
+            const missingPenaltyHomeArr = [];
+            const missingPenaltyAwayArr = [];
+
+            for (var inc in incidents) {
+            if (incidents[inc].incidentType == "period") {
+                // var period = createPeriod(incidents[inc])
+                if (incidents[inc].text == "FT") {
+                var periodFull = createFullPeriod(
+                    incidents[inc].homeScore,
+                    incidents[inc].awayScore
+                );
+                periodHomeArr.push(periodFull[0]);
+                periodAwayArr.push(periodFull[1]);
+                }
+                if (incidents[inc].text == "HT") {
+                var periodHalf = createHalfPeriod(
+                    incidents[inc].homeScore,
+                    incidents[inc].awayScore
+                );
+                periodHomeArr.push(periodHalf[0]);
+                periodAwayArr.push(periodHalf[1]);
+                }
+            }
+
+            if (incidents[inc].incidentType == "goal") {
+                var goal = createGoal(incidents[inc]);
+                if (goal.teamScore == "home") goalHomeArr.push(goal);
+                if (goal.teamScore == "away") goalAwayArr.push(goal);
+            }
+            if (incidents[inc].incidentType == "card") {
+                var card = createCard(incidents[inc]);
+                if (card.team == "home") cardHomeArr.push(card);
+                if (card.team == "away") cardAwayArr.push(card);
+            }
+            if (incidents[inc].incidentType == "substitution") {
+                var sub = createSubs(incidents[inc]);
+                if (sub.team == "home") subHomeArr.push(sub);
+                if (sub.team == "away") subAwayArr.push(sub);
+            }
+            if (incidents[inc].incidentType == "inGamePenalty") {
+                var penalty = createMissingPenalty(incidents[inc]);
+                if (penalty.team == "home") missingPenaltyHomeArr.push(penalty);
+                if (penalty.team == "away") missingPenaltyAwayArr.push(penalty);
+            }
+            } // for
+
+            if (periodHomeArr.length > 0) home["period"] = periodHomeArr;
+            if (goalHomeArr.length > 0) home["goal"] = goalHomeArr;
+            if (cardHomeArr.length > 0) home["card"] = cardHomeArr;
+            if (subHomeArr.length > 0) home["sub"] = subHomeArr;
+            if (missingPenaltyHomeArr.length > 0)
+            home["missingPenalty"] = missingPenaltyHomeArr;
+
+            if (periodAwayArr.length > 0) away["period"] = periodAwayArr;
+            if (goalAwayArr.length > 0) away["goal"] = goalAwayArr;
+            if (cardAwayArr.length > 0) away["card"] = cardAwayArr;
+            if (subAwayArr.length > 0) away["sub"] = subAwayArr;
+            if (missingPenaltyAwayArr.length > 0)
+            away["missingPenalty"] = missingPenaltyAwayArr;
+            
+            return [home, away];           
+        }
+
+        function fixLineUps(lines) {
+        
+            const home = {};
+            const away = {};
+
+            home["team"] = "home";
+            home["formation"] = lines.home.formation;
+            home["PlayerColor"] =  lines.home.playerColor['primary'];
+            home["GoalkeeperColor"] = lines.home.goalkeeperColor['primary'];
+            home["missing"] = missingPlayers(lines.home);
+            const playersHome = findPlayer(lines.home);
+
+          
+            
+            home["players"] = playersHome[0];
+            home["rating"] = Number(playersHome[1]);
+
+            away["team"] = "away";
+            away["formation"] = lines.away.formation;
+            away["PlayerColor"] =  lines.away.playerColor['primary'];
+            away["GoalkeeperColor"] = lines.away.goalkeeperColor['primary'];
+            away["missing"] = missingPlayers(lines.away);
+            const playersAway = findPlayer(lines.away);
+            
+            away["players"] = playersAway[0];
+            away["rating"] = Number(playersAway[1]);
+
+            return [home, away];
+        }
+
+
+      /***
+       * Helper Function
+       */
+
+      // --- statistic ---
+      /**
+       * statistic Period HOME call it on fixStatistics
+       */
+       function statisticPeriodHome(seat) {
+        let obj = {};
+        for (var s in seat) {
+          var groups = seat[s];
+          for (var g in groups) {
+            var statistcsItems = groups[g].statisticsItems;
+            for (var i in statistcsItems) {
+              var name = captitalizeText(statistcsItems[i].name);
+              var item = statistcsItems[i];
+
+              if (item.hasOwnProperty("homeTotal")) {
+                let percent = ((item.homeValue / item.homeTotal) * 100) | 0;
+                obj[name] = {
+                  success: item.homeValue,
+                  total: item.homeTotal,
+                  percent: percent,
+                };
+              } else {
+                obj[name] = item.homeValue;
+              }
+            }
+          }
+        }
+        return obj;
+      }
+
+      /**
+       * statistic Period AWAY call it on fixStatistics
+       */
+      function statisticPeriodAway(seat) {
+        let obj = {};
+        for (var s in seat) {
+          var groups = seat[s];
+          for (var g in groups) {
+            var statistcsItems = groups[g].statisticsItems;
+            for (var i in statistcsItems) {
+              var name = captitalizeText(statistcsItems[i].name);
+              var item = statistcsItems[i];
+
+              if (item.hasOwnProperty("awayTotal")) {
+                let percent = ((item.awayValue / item.awayTotal) * 100) | 0;
+                obj[name] = {
+                  success: item.awayValue,
+                  total: item.awayTotal,
+                  percent: percent,
+                };
+              } else {
+                obj[name] = item.awayValue;
+              }
+            }
+          }
+        }
+        return obj;
+      }
+
+
+      // --- incidents ---
+      /**
+       * create Full Period
+       */
+       function createFullPeriod(homeGoal, awayGoal) {
+        const homeResult = {};
+        const awayResult = {};
+
+        if (homeGoal > awayGoal) {
+          homeResult["result"] = "W";
+          homeResult["points"] = 3;
+          awayResult["result"] = "L";
+          awayResult["points"] = 0;
+        } else if (homeGoal < awayGoal) {
+          homeResult["result"] = "L";
+          homeResult["points"] = 0;
+          awayResult["result"] = "W";
+          awayResult["points"] = 3;
+        } else {
+          homeResult["result"] = "D";
+          homeResult["points"] = 1;
+          awayResult["result"] = "D";
+          awayResult["points"] = 1;
+        }
+
+        homeResult["period"] = "full";
+        homeResult["team"] = "homeTeam";
+        homeResult["gF"] = homeGoal;
+        homeResult["gA"] = awayGoal;
+        homeResult["gD"] = homeGoal - awayGoal;
+
+        awayResult["period"] = "full";
+        awayResult["team"] = "awayTeam";
+        awayResult["gF"] = awayGoal;
+        awayResult["gA"] = homeGoal;
+        awayResult["gD"] = awayGoal - homeGoal;
+
+        return [homeResult, awayResult];
+      }
+      /**
+       * create Half Period
+       */
+      function createHalfPeriod(homeGoal, awayGoal) {
+        const homeResult = {};
+        const awayResult = {};
+
+        if (homeGoal > awayGoal) {
+          homeResult["result"] = "W";
+          awayResult["result"] = "L";
+        } else if (homeGoal < awayGoal) {
+          homeResult["result"] = "L";
+          awayResult["result"] = "W";
+        } else {
+          homeResult["result"] = "D";
+          awayResult["result"] = "D";
+        }
+
+        homeResult["period"] = "half";
+        homeResult["team"] = "homeTeam";
+        homeResult["gF"] = homeGoal;
+        homeResult["gA"] = awayGoal;
+        homeResult["gD"] = homeGoal - awayGoal;
+
+        awayResult["period"] = "half";
+        awayResult["team"] = "awayTeam";
+        awayResult["gF"] = awayGoal;
+        awayResult["gA"] = homeGoal;
+        awayResult["gD"] = awayGoal - homeGoal;
+
+        return [homeResult, awayResult];
+      }
+      /**
+       * GOAL FUNCTION
+       */
+      function createGoal(goal) {
+        const obj = {};
+        obj["type"] = "goal";
+        obj["teamScore"] = goal.isHome ? "home" : "away";
+        obj["wayAchive"] = goal.incidentClass;
+        obj["playerGoal"] = goal.player.name;
+        if (goal.assist1) {
+          obj["assistPlayer"] = goal.assist1.name;
+        }
+        if (goal.addedTime) {
+          obj["time"] = goal.time + goal.addedTime;
+        } else {
+          obj["time"] = goal.time;
+        }
+        return obj;
+      }
+      /**
+       * CARD FUNCTION
+       */
+      function createCard(card) {
+        const obj = {};
+        obj["type"] = "card";
+        obj["team"] = card.isHome ? "home" : "away";
+        obj["card"] = card.incidentClass;
+        if (card.addedTime) {
+          obj["time"] = card.time + card.addedTime;
+        } else {
+          obj["time"] = card.time;
+        }
+        obj["playerName"] = card.playerName;
+        obj["reason"] = card.reason;
+        return obj;
+      }
+      /**
+       * SUBS FUNCTION
+       */
+      function createSubs(subs) {
+        const obj = {};
+        obj["type"] = "sub";
+        obj["team"] = subs.isHome ? "home" : "away";
+        obj["reason"] = subs.incidentClass;
+        obj["playerIn"] = subs.playerIn.name;
+        obj["playerOut"] = subs.playerOut.name;
+        if (subs.addedTime) {
+          obj["time"] = subs.time + subs.addedTime;
+        } else {
+          obj["time"] = subs.time;
+        }
+
+        return obj;
+      }
+      /**
+       * missingPenalty FUNCTION
+       */
+      function createMissingPenalty(missingPenalty) {
+        const obj = {};
+        obj["type"] = "missingPenalty";
+        obj["team"] = missingPenalty.isHome ? "home" : "away";
+        obj["reason"] = missingPenalty.incidentClass;
+        obj["name"] = missingPenalty.player.name;
+        if (missingPenalty.addedTime) {
+          obj["time"] = missingPenalty.time + missingPenalty.addedTime;
+        } else {
+          obj["time"] = missingPenalty.time;
+        }
+
+        obj["description"] = missingPenalty.description;
+        return obj;
+      }
+
+
+      // ---- lineups ----
+      /**
+       * Missing Player
+       */
+       function missingPlayers(seat) {
+        const missingArr = [];
+        for (var i in seat.missingPlayers) {
+          const obj = {};
+          obj["type"] = seat.missingPlayers[i].type;
+          obj["name"] = seat.missingPlayers[i].player.name;
+          obj["position"] = seat.missingPlayers[i].player.position;
+          obj["id"] = seat.missingPlayers[i].player.id;
+          obj["userCount"] = seat.missingPlayers[i].player.userCount;
+          obj["country"] = seat.missingPlayers[i].player.country.name;
+          obj["date"] = seat.missingPlayers[i].player.date;
+          obj["jerseyNumber"] = seat.missingPlayers[i].player.position;
+         
+          missingArr.push(obj);
+        }
+        return missingArr;
+      }
+
+      /**
+       * Players
+       */
+      function findPlayer(seat) {
+        const players = seat.players;
+
+        const player = [];
+        let rating = 0;
+        let playersIn = 0;
+
+        for (var p in players) {
+          const obj = {};
+
+          obj["name"] = players[p].player.name;
+          obj["position"] = players[p].player.position;
+          obj["id"] = players[p].player.id;
+          obj["userCount"] = players[p].player.userCount;
+          obj["country"] = players[p].player.country.name;
+          obj["date"] = players[p].player.dateOfBirthTimestamp;
+          obj["jerseyNumber"] = players[p].player.jerseyNumber;
+
+          if (players[p].substitute == false) obj["startingXI"] = true;
+          obj["sub"] = players[p].substitute;
+          //if sub == false startingX
+
+          if (Object.keys(players[p].statistics).length > 0) {
+            obj["time"] = players[p].statistics.minutesPlayed;
+            obj["statistic"] = players[p].statistics;
+            // if players has statistics rating then count players and add to total rating the rating player exmp one player maybe get in and was injured
+            if (players[p].statistics.rating) {
+              playersIn++;
+              rating = rating + players[p].statistics.rating;
+            }
+            // if statistic < 0 player didn't play
+          } else {
+            obj["notPlayed"] = true;
+          }
+          player.push(obj);
+        }
+        rating = rating / playersIn;
+        rating = rating.toFixed(2);
+        return [player, rating];
+      }
+
+
+    // Capitalize name for statistics Item
+      function captitalizeText(mySentence) {
+        const words = mySentence.split(" ");
+        for (let i = 0; i < words.length; i++) {
+          words[i] = words[i][0].toUpperCase() + words[i].substr(1);
+        }
+        return (text = words.join(""));
+      }
+
+
+
+    </script>
+</body>
+</html>
