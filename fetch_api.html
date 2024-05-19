@@ -110,6 +110,7 @@
             const metadata = {};
 
             const statistics = await extractStatistics(id);
+            console.log(statistics)
             const incidents = await extractIncidents(id);
             const lineups = await extractLineUps(id);
 
@@ -124,7 +125,7 @@
             const lines = fixLineUps(lineups);
 
 
-            console.log(lines)
+            
 
             // metadata
             metadata['statisticsMetaData'] = metadataStatistic;
@@ -143,8 +144,8 @@
             home["incidentFull"] = incident[0].period[0];
             home["incidentHalf"] = incident[0].period[1];
             home["periodFull"] = statistic.home[0];
-            home["periodSecond"] = statistic.home[1];
-            home["periodFirst"] = statistic.home[2];
+            home["periodFirst"] = statistic.home[1];
+            home["periodSecond"] = statistic.home[2];
             home["players"] = lines[0].players;
             home["missing"] = lines[0].missing;
             home["goal"] = incident[0].goal;
@@ -161,8 +162,8 @@
             away["incidentFull"] = incident[1].period[0];
             away["incidentHalf"] = incident[1].period[1];
             away["periodFull"] = statistic.away[0];
-            away["periodSecond"] = statistic.away[1];
-            away["periodFirst"] = statistic.away[2];
+            away["periodFirst"] = statistic.away[1];
+            away["periodSecond"] = statistic.away[2];
             away["players"] = lines[1].players;
             away["missing"] = lines[1].missing;
             away["goal"] = incident[1].goal;
@@ -172,7 +173,7 @@
 
 
             //merge json
-            const mergeedJSON = [metadata, home, away];
+            const mergeedJSON = [home, away, metadata];
             
 
             // mergeedJSON.push(home);
@@ -458,6 +459,7 @@
        * statistic Period HOME call it on fixStatistics
        */
        function statisticPeriodHome(seat) {
+
         let obj = {};
         for (var s in seat) {
           var groups = seat[s];
